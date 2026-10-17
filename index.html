@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CryptoLab 模擬交易所</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0f19; --panel: #131a2a; --panel2: #1a2337; --border: #24304a;
+    --text: #e6ebf5; --muted: #8a96b0; --accent: #f0b90b; --accent-text: #111;
+    --up: #16c784; --down: #ea3943; --warn-bg: #3a2f0b; --warn-text: #f5d36b;
+    --shadow: 0 6px 24px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6fb; --panel: #ffffff; --panel2: #eef1f7; --border: #dde3ee;
+    --text: #18202f; --muted: #66728a; --accent: #e0a800; --accent-text: #111;
+    --up: #0e9f6e; --down: #d63340; --warn-bg: #fff4cc; --warn-text: #7a5b00;
+    --shadow: 0 6px 24px rgba(20,30,60,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    font-size: 14px; line-height: 1.5; padding-bottom: 80px;
+  }
+  button { font: inherit; cursor: pointer; }
+  input, select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; width: 100%; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); } .muted { color: var(--muted); }
+
+  header {
+    position: sticky; top: 0; z-index: 10; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; padding: 10px 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 18px; letter-spacing: .3px; display: flex; align-items: center; gap: 8px; }
+  .logo span { color: var(--accent); }
+  nav.tabs { display: flex; gap: 4px; }
+  nav.tabs button { background: none; border: none; color: var(--muted); padding: 8px 14px; border-radius: 8px; font-weight: 600; }
+  nav.tabs button.active { color: var(--text); background: var(--panel2); }
+  .header-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .pill { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+  .pill button { background: none; border: none; color: var(--muted); padding: 5px 12px; font-weight: 600; }
+  .pill button.active { background: var(--accent); color: var(--accent-text); }
+  .icon-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 5px 10px; }
+
+  .banner { display: none; background: var(--warn-bg); color: var(--warn-text); padding: 8px 16px; font-size: 13px; text-align: center; }
+  .banner.show { display: block; }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  .page { display: none; } .page.active { display: block; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .card .label { color: var(--muted); font-size: 12px; }
+  .card .value { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .panel h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar input { max-width: 260px; }
+  .toolbar .grow { flex: 1; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  th, td { padding: 10px 8px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; user-select: none; }
+  th.sortable { cursor: pointer; } th.sortable:hover { color: var(--text); }
+  th:first-child, td:first-child, th.left, td.left { text-align: left; }
+  tbody tr:hover { background: var(--panel2); }
+  .coin { display: flex; align-items: center; gap: 10px; }
+  .coin img, .coin .avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; }
+  .coin .avatar { background: var(--accent); color: var(--accent-text); display: grid; place-items: center; font-size: 11px; font-weight: 800; }
+  .coin .sym { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+  .btn { border: none; border-radius: 8px; padding: 7px 14px; font-weight: 700; }
+  .btn-accent { background: var(--accent); color: var(--accent-text); }
+  .btn-ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+  .btn-buy { background: var(--up); color: #fff; }
+  .btn-sell { background: var(--down); color: #fff; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .empty { text-align: center; color: var(--muted); padding: 24px; }
+
+  .trade-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .side-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
+  .side-toggle button { padding: 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--muted); font-weight: 700; }
+  .side-toggle button.active.buy { background: var(--up); color: #fff; border-color: var(--up); }
+  .side-toggle button.active.sell { background: var(--down); color: #fff; border-color: var(--down); }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .pct { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .pct button { background: var(--panel2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 5px; font-size: 12px; }
+  .pct button:hover { border-color: var(--accent); }
+  .preview { background: var(--panel2); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
+  .preview div { display: flex; justify-content: space-between; }
+  .err { color: var(--down); font-size: 12px; min-height: 18px; margin-bottom: 6px; }
+  .big-price { font-size: 26px; font-weight: 800; }
+  .chart-box { position: relative; height: 240px; }
+  .split { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: center; }
+  table.compact { min-width: 520px; }
+  @media (max-width: 1150px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+  .dca-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end; }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .compare .card { box-shadow: none; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel2); color: var(--muted); font-weight: 600; }
+
+  .toast-box { position: fixed; right: 16px; bottom: 70px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
+  .toast { background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--up); padding: 10px 14px; border-radius: 8px; box-shadow: var(--shadow); animation: slide .25s ease; max-width: 320px; }
+  .toast.error { border-left-color: var(--down); }
+  @keyframes slide { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .flash-up { animation: fu 1s ease; } .flash-down { animation: fd 1s ease; }
+  @keyframes fu { from { background: rgba(22,199,132,.25); } to { background: transparent; } }
+  @keyframes fd { from { background: rgba(234,57,67,.25); } to { background: transparent; } }
+
+  footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel); border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; text-align: center; padding: 8px 16px; }
+
+  @media (max-width: 860px) {
+    .trade-grid, .split { grid-template-columns: minmax(0, 1fr); }
+    .cards .card:last-child:nth-child(odd) { grid-column: span 2; }
+    nav.tabs { position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel); border-top: 1px solid var(--border); justify-content: space-around; padding: 6px; z-index: 20; }
+    body { padding-bottom: 70px; }
+    footer { position: static; padding: 4px 16px 12px; background: none; border: none; }
+    .cards { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card { padding: 12px; }
+    .toast-box { bottom: 70px; left: 16px; }
+    .header-right { margin-left: auto; }
+    .card .value { font-size: 18px; }
+    .compare { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🪙 <div>Crypto<span>Lab</span></div></div>
+  <nav class="tabs" id="tabs">
+    <button data-page="markets" class="active">📈 行情</button>
+    <button data-page="trade">💱 模擬交易</button>
+    <button data-page="dca">🧮 定期定額</button>
+  </nav>
+  <div class="header-right">
+    <div class="pill" id="curToggle">
+      <button data-cur="USD" class="active">USD</button>
+      <button data-cur="TWD">TWD</button>
+    </div>
+    <button class="icon-btn" id="themeBtn" title="切換深淺色">🌙</button>
+  </div>
+</header>
+<div class="banner" id="banner">⚠️ 目前無法連線到 CoinGecko（可能是 API 限流），正在使用示範資料，稍後會自動重試。</div>
+
+<main>
+  <!-- ===== 行情 ===== -->
+  <section class="page active" id="page-markets">
+    <div class="cards">
+      <div class="card"><div class="label">我的總資產</div><div class="value num" id="mTotal">—</div></div>
+      <div class="card"><div class="label">總損益</div><div class="value num" id="mPnl">—</div></div>
+      <div class="card"><div class="label">BTC 價格</div><div class="value num" id="mBtc">—</div></div>
+      <div class="card"><div class="label">USD / TWD 匯率</div><div class="value num" id="mRate">—</div></div>
+    </div>
+    <div class="panel">
+      <div class="toolbar">
+        <h2 style="margin:0">市值前 20 大</h2>
+        <div class="grow"></div>
+        <input id="search" placeholder="🔍 搜尋名稱或代號，例如 BTC">
+        <span class="muted" id="updated">載入中…</span>
+        <button class="btn btn-ghost" id="refreshBtn">↻ 刷新</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th class="sortable" data-sort="market_cap_rank">#</th>
+            <th class="left">幣種</th>
+            <th class="sortable" data-sort="current_price">價格</th>
+            <th class="sortable" data-sort="price_change_percentage_24h">24h 漲跌</th>
+            <th class="sortable" data-sort="market_cap">市值</th>
+            <th>7 天走勢</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="marketBody"><tr><td colspan="7" class="empty">載入中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 模擬交易 ===== -->
+  <section class="page" id="page-trade">
+    <div class="cards">
+      <div class="card"><div class="label">總資產</div><div class="value num" id="tTotal">—</div></div>
+      <div class="card"><div class="label">可用 USDT</div><div class="value num" id="tCash">—</div></div>
+      <div class="card"><div class="label">總損益（初始 10,000 USDT）</div><div class="value num" id="tPnl">—</div></div>
+    </div>
+    <div class="trade-grid">
+      <div class="panel">
+        <h2>下單</h2>
+        <div class="field">
+          <label>幣種</label>
+          <select id="tCoin"></select>
+        </div>
+        <div style="margin-bottom:12px">
+          <div class="muted" style="font-size:12px">目前價格</div>
+          <div class="big-price num" id="tPrice">—</div>
+          <div class="num" id="tChange"></div>
+        </div>
+        <div class="side-toggle">
+          <button class="buy active" data-side="buy">買入</button>
+          <button class="sell" data-side="sell">賣出</button>
+        </div>
+        <div class="field">
+          <label id="amtLabel">花費金額（USDT）</label>
+          <input id="tAmount" type="number" min="0" step="any" placeholder="0">
+        </div>
+        <div class="pct" id="pctBtns">
+          <button data-p="0.25">25%</button><button data-p="0.5">50%</button>
+          <button data-p="0.75">75%</button><button data-p="1">100%</button>
+        </div>
+        <div class="preview" id="preview"></div>
+        <div class="err" id="tErr"></div>
+        <button class="btn btn-buy" id="submitBtn" style="width:100%;padding:11px">買入</button>
+      </div>
+      <div>
+        <div class="panel">
+          <h2>資產分布</h2>
+          <div class="split">
+            <div class="chart-box" style="height:200px"><canvas id="pieChart"></canvas></div>
+            <div class="table-wrap">
+              <table class="compact">
+                <thead><tr><th class="left">幣種</th><th>數量</th><th>平均成本</th><th>現價</th><th>市值</th><th>未實現損益</th></tr></thead>
+                <tbody id="holdBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>交易紀錄 <span class="grow"></span><button class="btn btn-ghost" id="resetBtn" style="margin-left:auto;font-size:12px">重置帳戶</button></h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th class="left">時間</th><th class="left">方向</th><th class="left">幣種</th><th>成交價</th><th>數量</th><th>金額</th><th>手續費</th></tr></thead>
+              <tbody id="histBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 定期定額 ===== -->
+  <section class="page" id="page-dca">
+    <div class="panel">
+      <h2>定期定額（DCA）回測 <span class="tag" id="dcaSource"></span></h2>
+      <p class="muted" style="margin-top:-6px">如果過去每隔一段時間固定買一點，現在會是多少？</p>
+      <div class="dca-form">
+        <div class="field" style="margin:0"><label>幣種</label><select id="dCoin"></select></div>
+        <div class="field" style="margin:0"><label>每期金額（USD）</label><input id="dAmount" type="number" value="50" min="1"></div>
+        <div class="field" style="margin:0"><label>頻率</label>
+          <select id="dFreq"><option value="7">每週</option><option value="30">每月</option></select></div>
+        <div class="field" style="margin:0"><label>回測期間</label>
+          <select id="dDays"><option value="90">3 個月</option><option value="180">6 個月</option><option value="365" selected>1 年</option></select></div>
+        <button class="btn btn-accent" id="dcaBtn" style="padding:10px">開始回測</button>
+      </div>
+    </div>
+    <div id="dcaResult" style="display:none">
+      <div class="cards">
+        <div class="card"><div class="label">總投入</div><div class="value num" id="dInvested">—</div></div>
+        <div class="card"><div class="label">目前價值</div><div class="value num" id="dValue">—</div></div>
+        <div class="card"><div class="label">報酬率</div><div class="value num" id="dRoi">—</div></div>
+        <div class="card"><div class="label">累積幣量 / 平均成本</div><div class="value num" id="dQty" style="font-size:16px">—</div></div>
+      </div>
+      <div class="panel">
+        <h2>投入金額 vs 持倉市值</h2>
+        <div class="chart-box" style="height:300px"><canvas id="dcaChart"></canvas></div>
+        <div class="compare">
+          <div class="card"><div class="label">📅 定期定額（共 <span id="dTimes">0</span> 次）</div><div class="value num" id="dCmpDca">—</div></div>
+          <div class="card"><div class="label">💰 第一天單筆全部買入</div><div class="value num" id="dCmpLump">—</div></div>
+        </div>
+        <p class="muted" id="dVerdict" style="margin-bottom:0"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast-box" id="toasts"></div>
+<footer>⚠️ 本網站僅供教學模擬，使用虛擬資金，不構成任何投資建議。行情資料來源：CoinGecko</footer>
+
+<script>
+/* ================= 設定與狀態 ================= */
+const API = 'https://api.coingecko.com/api/v3';
+const START_CASH = 10000, FEE = 0.001, STORE_KEY = 'cryptolab-v1';
+
+let coins = [];            // 行情資料（USD 計價）
+let usingDemo = false;
+let twdRate = 32.0;        // 1 USD = ? TWD（啟動時會讀取快取）
+let currency = 'USD';
+let sortKey = 'market_cap_rank', sortDir = 1;
+let side = 'buy';
+let pieChart = null, dcaChart = null;
+let retryTimer = null;
+const prevPrices = {};
+
+function loadStore(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
+function saveStore(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+
+let account = loadStore(STORE_KEY, null) || { cash: START_CASH, holdings: {}, trades: [] };
+const saveAccount = () => saveStore(STORE_KEY, account);
+
+/* ================= 示範資料（API 失敗時使用） ================= */
+const DEMO = [
+  ['bitcoin','btc','Bitcoin',67000,1.3e12],['ethereum','eth','Ethereum',3500,4.2e11],
+  ['tether','usdt','Tether',1,1.1e11],['binancecoin','bnb','BNB',580,8.5e10],
+  ['solana','sol','Solana',150,7e10],['usd-coin','usdc','USDC',1,3.3e10],
+  ['ripple','xrp','XRP',0.55,3e10],['dogecoin','doge','Dogecoin',0.13,1.9e10],
+  ['cardano','ada','Cardano',0.45,1.6e10],['tron','trx','TRON',0.12,1.05e10],
+  ['avalanche-2','avax','Avalanche',28,1.1e10],['chainlink','link','Chainlink',14,8.5e9]
+];
+function seeded(seed) { return () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }; }
+function demoCoins() {
+  const t = Math.floor(Date.now() / 60000);
+  return DEMO.map(([id, symbol, name, price, cap], i) => {
+    const r = seeded(i * 97 + t), stable = price === 1;
+    const p = stable ? 1 : price * (1 + (r() - 0.5) * 0.02);
+    const spark = []; let v = p;
+    for (let k = 0; k < 168; k++) { v *= stable ? 1 : 1 + (r() - 0.5) * 0.02; spark.unshift(v); }
+    return { id, symbol, name, image: '', current_price: p, market_cap: cap, market_cap_rank: i + 1,
+      price_change_percentage_24h: stable ? 0 : (r() - 0.45) * 8, sparkline_in_7d: { price: spark } };
+  });
+}
+
+/* ================= 工具函式 ================= */
+const $ = s => document.querySelector(s);
+function money(usd, digits) {
+  const v = currency === 'TWD' ? usd * twdRate : usd;
+  const abs = Math.abs(v);
+  const d = digits ?? (abs >= 1000 ? 0 : abs >= 1 ? 2 : abs >= 0.01 ? 4 : 6);
+  return (v < 0 ? '-' : '') + (currency === 'TWD' ? 'NT$' : '$') + abs.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function compact(usd) {
+  const v = currency === 'TWD' ? usd * twdRate : usd;
+  const units = [[1e12,'T'],[1e9,'B'],[1e6,'M']];
+  for (const [n, u] of units) if (v >= n) return (currency === 'TWD' ? 'NT$' : '$') + (v / n).toFixed(2) + u;
+  return money(usd, 0);
+}
+const pct = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+const cls = v => v >= 0 ? 'up' : 'down';
+const qtyFmt = q => q.toLocaleString('en-US', { maximumFractionDigits: q >= 1 ? 4 : 8 });
+const getCoin = id => coins.find(c => c.id === id);
+function avatar(c) {
+  return c.image ? `<img src="${c.image}" alt="" loading="lazy">` : `<div class="avatar">${c.symbol.slice(0,3).toUpperCase()}</div>`;
+}
+function toast(msg, error) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (error ? ' error' : '');
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+function sparkSvg(arr) {
+  if (!arr || arr.length < 2) return '';
+  const pts = arr.filter((_, i) => i % 4 === 0);
+  const min = Math.min(...pts), max = Math.max(...pts), w = 110, h = 32;
+  const d = pts.map((v, i) => `${(i / (pts.length - 1) * w).toFixed(1)},${(h - (v - min) / (max - min || 1) * h).toFixed(1)}`).join(' ');
+  const color = arr[arr.length - 1] >= arr[0] ? 'var(--up)' : 'var(--down)';
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="${color}" stroke-width="1.5" points="${d}"/></svg>`;
+}
+
+/* ================= 抓資料 ================= */
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function loadRate() {
+  try {
+    const d = await fetchJSON(`${API}/simple/price?ids=tether&vs_currencies=twd`);
+    if (d.tether?.twd) { twdRate = d.tether.twd; saveStore('cryptolab-rate', twdRate); }
+  } catch {}
+}
+async function loadMarkets() {
+  $('#updated').textContent = '更新中…';
+  try {
+    const data = await fetchJSON(`${API}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=true&price_change_percentage=24h`);
+    if (!Array.isArray(data) || !data.length) throw new Error('empty');
+    coins = data; usingDemo = false;
+    saveStore('cryptolab-cache', { time: Date.now(), coins: data });
+  } catch (e) {
+    usingDemo = true;
+    const cache = loadStore('cryptolab-cache', null);
+    if (cache?.coins?.length) {
+      coins = cache.coins;
+      $('#banner').textContent = `⚠️ CoinGecko 暫時無法連線（可能是 API 限流），先顯示 ${new Date(cache.time).toLocaleTimeString('zh-TW', { hour12: false })} 的快取行情，15 秒後自動重試。`;
+    } else {
+      coins = demoCoins();
+      $('#banner').textContent = '⚠️ CoinGecko 暫時無法連線（可能是 API 限流），正在使用示範資料，15 秒後自動重試。';
+    }
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(loadMarkets, 15000);
+  }
+  $('#banner').classList.toggle('show', usingDemo);
+  $('#updated').textContent = '最後更新 ' + new Date().toLocaleTimeString('zh-TW', { hour12: false }) + (usingDemo ? '（離線）' : '');
+  fillCoinSelects();
+  renderAll();
+}
+
+/* ================= 行情表 ================= */
+function renderMarkets() {
+  const q = $('#search').value.trim().toLowerCase();
+  const list = coins.filter(c => !q || c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q))
+    .sort((a, b) => ((a[sortKey] ?? 0) - (b[sortKey] ?? 0)) * sortDir);
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (th.dataset.sort === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : '');
+  });
+  if (!list.length) { $('#marketBody').innerHTML = `<tr><td colspan="7" class="empty">找不到「${q.replace(/[<>&"]/g, '')}」</td></tr>`; return; }
+  $('#marketBody').innerHTML = list.map(c => {
+    const ch = c.price_change_percentage_24h ?? 0;
+    const prev = prevPrices[c.id];
+    const flash = prev && prev !== c.current_price ? (c.current_price > prev ? 'flash-up' : 'flash-down') : '';
+    return `<tr>
+      <td class="muted">${c.market_cap_rank}</td>
+      <td class="left"><div class="coin">${avatar(c)}<div><div>${c.name}</div><div class="sym">${c.symbol}</div></div></div></td>
+      <td class="num ${flash}">${money(c.current_price)}</td>
+      <td class="num ${cls(ch)}">${pct(ch)}</td>
+      <td class="num">${compact(c.market_cap)}</td>
+      <td>${sparkSvg(c.sparkline_in_7d?.price)}</td>
+      <td><button class="btn btn-accent" data-trade="${c.id}">交易</button></td>
+    </tr>`;
+  }).join('');
+  coins.forEach(c => prevPrices[c.id] = c.current_price);
+}
+
+/* ================= 帳戶計算 ================= */
+function portfolio() {
+  let value = account.cash;
+  const rows = Object.entries(account.holdings).map(([id, h]) => {
+    const c = getCoin(id);
+    const price = c ? c.current_price : h.cost / h.qty;
+    const mv = h.qty * price;
+    value += mv;
+    return { id, c, h, price, mv, pnl: mv - h.cost, pnlPct: (mv - h.cost) / h.cost * 100 };
+  });
+  return { value, rows, pnl: value - START_CASH };
+}
+
+function renderSummary() {
+  const p = portfolio();
+  const pnlHtml = `<span class="${cls(p.pnl)}">${p.pnl >= 0 ? '+' : ''}${money(p.pnl, 2)} (${pct(p.pnl / START_CASH * 100)})</span>`;
+  $('#mTotal').textContent = $('#tTotal').textContent = money(p.value, 2);
+  $('#mPnl').innerHTML = $('#tPnl').innerHTML = pnlHtml;
+  $('#tCash').textContent = money(account.cash, 2);
+  const btc = getCoin('bitcoin');
+  $('#mBtc').innerHTML = btc ? `${money(btc.current_price)} <span class="${cls(btc.price_change_percentage_24h)}" style="font-size:13px">${pct(btc.price_change_percentage_24h ?? 0)}</span>` : '—';
+  $('#mRate').textContent = twdRate.toFixed(2);
+  return p;
+}
+
+function renderHoldings(p) {
+  $('#holdBody').innerHTML = p.rows.length ? p.rows.map(r => `<tr>
+      <td class="left"><div class="coin">${r.c ? avatar(r.c) : ''}<span>${r.c ? r.c.symbol.toUpperCase() : r.id}</span></div></td>
+      <td class="num">${qtyFmt(r.h.qty)}</td>
+      <td class="num">${money(r.h.cost / r.h.qty)}</td>
+      <td class="num">${money(r.price)}</td>
+      <td class="num">${money(r.mv, 2)}</td>
+      <td class="num ${cls(r.pnl)}">${r.pnl >= 0 ? '+' : ''}${money(r.pnl, 2)}<br><small>${pct(r.pnlPct)}</small></td>
+    </tr>`).join('') : `<tr><td colspan="6" class="empty">還沒有持倉，去左邊買一點吧 👈</td></tr>`;
+
+  const labels = ['USDT', ...p.rows.map(r => r.c ? r.c.symbol.toUpperCase() : r.id)];
+  const data = [account.cash, ...p.rows.map(r => r.mv)];
+  const colors = ['#8a96b0', '#f0b90b', '#627eea', '#16c784', '#ea3943', '#9945ff', '#23292f', '#c2a633', '#0033ad', '#e84142'];
+  if (!window.Chart) return;
+  if (!pieChart) {
+    pieChart = new Chart($('#pieChart'), {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+      options: { maintainAspectRatio: false, cutout: '62%',
+        plugins: { legend: { position: 'bottom', display: true, labels: { color: getComputedStyle(document.body).color, boxWidth: 10 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${money(ctx.raw, 2)}` } } } }
+    });
+  } else {
+    pieChart.data.labels = labels; pieChart.data.datasets[0].data = data;
+    pieChart.options.plugins.legend.labels.color = getComputedStyle(document.body).color;
+    pieChart.update('none');
+  }
+}
+
+function renderHistory() {
+  $('#histBody').innerHTML = account.trades.length ? account.trades.slice(0, 50).map(t => `<tr>
+      <td class="left muted">${new Date(t.time).toLocaleString('zh-TW', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+      <td class="left ${t.side === 'buy' ? 'up' : 'down'}">${t.side === 'buy' ? '買入' : '賣出'}</td>
+      <td class="left">${t.symbol.toUpperCase()}</td>
+      <td class="num">${money(t.price)}</td>
+      <td class="num">${qtyFmt(t.qty)}</td>
+      <td class="num">${money(t.total, 2)}</td>
+      <td class="num muted">${money(t.fee, 4)}</td>
+    </tr>`).join('') : `<tr><td colspan="7" class="empty">尚無交易紀錄</td></tr>`;
+}
+
+/* ================= 下單 ================= */
+function fillCoinSelects() {
+  const tradable = coins.filter(c => !['tether', 'usd-coin'].includes(c.id));
+  for (const sel of [$('#tCoin'), $('#dCoin')]) {
+    const keep = sel.value;
+    sel.innerHTML = tradable.map(c => `<option value="${c.id}">${c.name} (${c.symbol.toUpperCase()})</option>`).join('');
+    if (keep && tradable.some(c => c.id === keep)) sel.value = keep;
+  }
+}
+
+function setSide(s) {
+  side = s;
+  document.querySelectorAll('.side-toggle button').forEach(b => b.classList.toggle('active', b.dataset.side === s));
+  const btn = $('#submitBtn');
+  btn.className = 'btn ' + (s === 'buy' ? 'btn-buy' : 'btn-sell');
+  $('#tAmount').value = '';
+  renderTradeForm();
+}
+
+function renderTradeForm() {
+  const c = getCoin($('#tCoin').value);
+  if (!c) return;
+  const ch = c.price_change_percentage_24h ?? 0;
+  $('#tPrice').textContent = money(c.current_price);
+  $('#tChange').innerHTML = `<span class="${cls(ch)}">${pct(ch)}（24h）</span>`;
+  const held = account.holdings[c.id]?.qty || 0;
+  const amt = parseFloat($('#tAmount').value) || 0;
+  const sym = c.symbol.toUpperCase();
+  let err = '', lines;
+
+  if (side === 'buy') {
+    $('#amtLabel').textContent = `花費金額（USDT）· 可用 ${account.cash.toFixed(2)}`;
+    const fee = amt * FEE, qty = (amt - fee) / c.current_price;
+    lines = [['預估獲得', `${qtyFmt(qty)} ${sym}`], ['手續費 0.1%', `${fee.toFixed(4)} USDT`]];
+    if (amt <= 0) err = ' '; else if (amt > account.cash + 1e-9) err = '❌ USDT 餘額不足';
+    else if (amt < 1) err = '❌ 最低下單金額 1 USDT';
+    $('#submitBtn').textContent = `買入 ${sym}`;
+  } else {
+    $('#amtLabel').textContent = `賣出數量（${sym}）· 持有 ${qtyFmt(held)}`;
+    const gross = amt * c.current_price, fee = gross * FEE;
+    lines = [['預估收到', `${(gross - fee).toFixed(2)} USDT`], ['手續費 0.1%', `${fee.toFixed(4)} USDT`]];
+    if (amt <= 0) err = ' '; else if (amt > held + 1e-12) err = held ? `❌ 持有的 ${sym} 不足` : `❌ 你還沒有持有 ${sym}`;
+    $('#submitBtn').textContent = `賣出 ${sym}`;
+  }
+  $('#preview').innerHTML = lines.map(([a, b]) => `<div><span class="muted">${a}</span><span class="num">${b}</span></div>`).join('');
+  $('#tErr').textContent = err.trim();
+  $('#submitBtn').disabled = !!err;
+}
+
+function submitOrder() {
+  const c = getCoin($('#tCoin').value);
+  const amt = parseFloat($('#tAmount').value) || 0;
+  if (!c || amt <= 0) return;
+  const price = c.current_price;
+  if (side === 'buy') {
+    if (amt > account.cash + 1e-9) return toast('USDT 餘額不足', true);
+    const spend = Math.min(amt, account.cash), fee = spend * FEE, qty = (spend - fee) / price;
+    account.cash -= spend;
+    const h = account.holdings[c.id] || (account.holdings[c.id] = { qty: 0, cost: 0 });
+    h.qty += qty; h.cost += spend;
+    account.trades.unshift({ time: Date.now(), side: 'buy', id: c.id, symbol: c.symbol, price, qty, total: spend, fee });
+    toast(`✅ 成功買入 ${qtyFmt(qty)} ${c.symbol.toUpperCase()}`);
+  } else {
+    const h = account.holdings[c.id];
+    if (!h || amt > h.qty + 1e-12) return toast('持幣不足', true);
+    const qty = Math.min(amt, h.qty), gross = qty * price, fee = gross * FEE;
+    account.cash += gross - fee;
+    h.cost -= h.cost * (qty / h.qty); h.qty -= qty;
+    if (h.qty < 1e-10) delete account.holdings[c.id];
+    account.trades.unshift({ time: Date.now(), side: 'sell', id: c.id, symbol: c.symbol, price, qty, total: gross, fee });
+    toast(`✅ 成功賣出 ${qtyFmt(qty)} ${c.symbol.toUpperCase()}，收到 ${(gross - fee).toFixed(2)} USDT`);
+  }
+  saveAccount();
+  $('#tAmount').value = '';
+  renderAll();
+}
+
+/* ================= DCA 回測 ================= */
+async function runDCA() {
+  const id = $('#dCoin').value, per = parseFloat($('#dAmount').value) || 0;
+  const step = +$('#dFreq').value, days = +$('#dDays').value;
+  if (per <= 0) return toast('每期金額要大於 0', true);
+  const btn = $('#dcaBtn'); btn.disabled = true; btn.textContent = '計算中…';
+  let prices, demo = false;
+  try {
+    const d = await fetchJSON(`${API}/coins/${id}/market_chart?vs_currency=usd&days=${days}&interval=daily`);
+    prices = d.prices;
+    if (!prices?.length) throw new Error('empty');
+  } catch {
+    demo = true;
+    const c = getCoin(id), r = seeded(id.length * 131 + days);
+    let v = c.current_price; prices = [];
+    for (let i = 0; i <= days; i++) { prices.unshift([Date.now() - i * 864e5, v]); v /= 1 + (r() - 0.48) * 0.05; }
+  }
+  btn.disabled = false; btn.textContent = '開始回測';
+  $('#dcaSource').textContent = demo ? '示範資料' : 'CoinGecko 歷史價格';
+
+  let qty = 0, invested = 0, times = 0;
+  const labels = [], inv = [], val = [];
+  prices.forEach(([ts, p], i) => {
+    if (i % step === 0) { qty += per / p; invested += per; times++; }
+    labels.push(new Date(ts).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' }));
+    inv.push(invested); val.push(qty * p);
+  });
+  const last = prices[prices.length - 1][1];
+  const value = qty * last, roi = (value - invested) / invested * 100;
+  const lump = invested / prices[0][1] * last, lumpRoi = (lump - invested) / invested * 100;
+
+  $('#dcaResult').style.display = 'block';
+  $('#dInvested').textContent = money(invested, 2);
+  $('#dValue').textContent = money(value, 2);
+  $('#dRoi').innerHTML = `<span class="${cls(roi)}">${pct(roi)}</span>`;
+  $('#dQty').innerHTML = `${qtyFmt(qty)} ${getCoin(id).symbol.toUpperCase()}<br><span class="muted" style="font-size:13px">均價 ${money(invested / qty)}</span>`;
+  $('#dTimes').textContent = times;
+  $('#dCmpDca').innerHTML = `${money(value, 2)} <span class="${cls(roi)}" style="font-size:14px">${pct(roi)}</span>`;
+  $('#dCmpLump').innerHTML = `${money(lump, 2)} <span class="${cls(lumpRoi)}" style="font-size:14px">${pct(lumpRoi)}</span>`;
+  $('#dVerdict').textContent = roi > lumpRoi
+    ? `👉 這段期間「定期定額」比單筆投入多賺了 ${(roi - lumpRoi).toFixed(1)} 個百分點，分散進場降低了買在高點的風險。`
+    : `👉 這段期間「單筆投入」表現較好（多 ${(lumpRoi - roi).toFixed(1)} 個百分點），因為價格大致一路上漲；但沒人能事先知道走勢。`;
+
+  const conv = a => currency === 'TWD' ? a.map(x => x * twdRate) : a;
+  if (!window.Chart) return;
+  dcaChart?.destroy();
+  const textColor = getComputedStyle(document.body).color;
+  dcaChart = new Chart($('#dcaChart'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: '累積投入', data: conv(inv), borderColor: '#8a96b0', borderDash: [5, 4], pointRadius: 0, borderWidth: 2, stepped: true },
+      { label: '持倉市值', data: conv(val), borderColor: '#f0b90b', backgroundColor: 'rgba(240,185,11,.12)', fill: true, pointRadius: 0, borderWidth: 2, tension: .2 }
+    ]},
+    options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      scales: { x: { ticks: { color: textColor, maxTicksLimit: 8 }, grid: { display: false } },
+                y: { ticks: { color: textColor }, grid: { color: 'rgba(138,150,176,.15)' } } },
+      plugins: { legend: { labels: { color: textColor } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${(currency === 'TWD' ? 'NT$' : '$') + ctx.raw.toFixed(2)}` } } } }
+  });
+}
+
+/* ================= 整體渲染與事件 ================= */
+function renderAll() {
+  renderMarkets();
+  const p = renderSummary();
+  renderHoldings(p);
+  renderHistory();
+  renderTradeForm();
+}
+
+function showPage(name) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+  window.scrollTo(0, 0);
+}
+
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) showPage(b.dataset.page); });
+$('#curToggle').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  currency = b.dataset.cur;
+  document.querySelectorAll('#curToggle button').forEach(x => x.classList.toggle('active', x === b));
+  saveStore('cryptolab-cur', currency);
+  renderAll();
+  if ($('#dcaResult').style.display === 'block') runDCA();
+});
+$('#search').addEventListener('input', renderMarkets);
+$('#refreshBtn').addEventListener('click', loadMarkets);
+document.querySelectorAll('th.sortable').forEach(th => th.addEventListener('click', () => {
+  if (sortKey === th.dataset.sort) sortDir *= -1; else { sortKey = th.dataset.sort; sortDir = sortKey === 'market_cap_rank' ? 1 : -1; }
+  renderMarkets();
+}));
+$('#marketBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-trade]'); if (!b) return;
+  $('#tCoin').value = b.dataset.trade;
+  showPage('trade'); setSide('buy'); $('#tAmount').focus();
+});
+$('#tCoin').addEventListener('change', () => { $('#tAmount').value = ''; renderTradeForm(); });
+$('#tAmount').addEventListener('input', renderTradeForm);
+document.querySelectorAll('.side-toggle button').forEach(b => b.addEventListener('click', () => setSide(b.dataset.side)));
+$('#pctBtns').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const p = +b.dataset.p;
+  if (side === 'buy') $('#tAmount').value = Math.floor(account.cash * p * 100) / 100;
+  else { const held = account.holdings[$('#tCoin').value]?.qty || 0; $('#tAmount').value = p === 1 ? held : +(held * p).toFixed(8); }
+  renderTradeForm();
+});
+$('#submitBtn').addEventListener('click', submitOrder);
+$('#resetBtn').addEventListener('click', () => {
+  if (!confirm('確定要重置帳戶嗎？所有持倉與交易紀錄都會清除，資金回到 10,000 USDT。')) return;
+  account = { cash: START_CASH, holdings: {}, trades: [] };
+  saveAccount(); renderAll(); toast('帳戶已重置');
+});
+$('#dcaBtn').addEventListener('click', runDCA);
+
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $('#themeBtn').textContent = t === 'light' ? '🌙' : '☀️';
+  saveStore('cryptolab-theme', t);
+  if (pieChart) { pieChart.destroy(); pieChart = null; }
+  renderHoldings(portfolio());
+  if (dcaChart) runDCA();
+}
+$('#themeBtn').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'));
+
+/* ================= 啟動 ================= */
+(async function init() {
+  document.documentElement.dataset.theme = loadStore('cryptolab-theme', 'dark');
+  $('#themeBtn').textContent = document.documentElement.dataset.theme === 'light' ? '🌙' : '☀️';
+  currency = loadStore('cryptolab-cur', 'USD');
+  twdRate = loadStore('cryptolab-rate', twdRate);
+  document.querySelectorAll('#curToggle button').forEach(x => x.classList.toggle('active', x.dataset.cur === currency));
+  await loadRate();
+  await loadMarkets();
+  setInterval(loadMarkets, 60000);
+  setInterval(loadRate, 600000);
+})();
+</script>
+</body>
+</html>
